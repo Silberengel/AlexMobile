@@ -1,149 +1,81 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../providers/app_providers.dart';
+import '../models/nostr_models.dart';
 
 class ProfileMenuWidget extends ConsumerWidget {
   const ProfileMenuWidget({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final userProfile = ref.watch(profileProvider);
+    final userProfile = ref.watch(userProfileProvider);
+    final authState = ref.watch(authStateProvider);
 
-    return Container(
-      padding: const EdgeInsets.all(8.0),
+    return Card(
+      margin: const EdgeInsets.all(8.0),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          // Profile info
-          if (userProfile != null) ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundImage: userProfile.picture != null
-                      ? NetworkImage(userProfile.picture!)
-                      : null,
-                    child: userProfile.picture == null
-                      ? Icon(
-                          Icons.person,
-                          color: Theme.of(context).colorScheme.onSurface,
-                          size: 20,
-                        )
-                      : null,
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          userProfile.displayName ?? 'Anonymous',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          '${userProfile.pubkey.substring(0, 16)}...',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
+          // Profile header
+          ListTile(
+            leading: CircleAvatar(
+              backgroundColor: Theme.of(context).colorScheme.primary,
+              child: Text(
+                userProfile?.displayName?.substring(0, 1).toUpperCase() ?? 'U',
+                style: const TextStyle(color: Colors.white),
               ),
             ),
-            const Divider(height: 1),
-          ] else ...[
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 8.0),
-              child: Row(
-                children: [
-                  CircleAvatar(
-                    radius: 20,
-                    backgroundColor: Theme.of(context).colorScheme.primary,
-                    child: const Icon(
-                      Icons.person,
-                      color: Colors.white,
-                      size: 20,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          'Not authenticated',
-                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                        Text(
-                          'Tap to sign in',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: Theme.of(context).colorScheme.onSurface.withOpacity(0.7),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            title: Text(userProfile?.displayName ?? 'User'),
+            subtitle: Text(userProfile?.bio ?? 'No bio available'),
+            trailing: IconButton(
+              icon: const Icon(Icons.close),
+              onPressed: () => Navigator.of(context).pop(),
             ),
-            const Divider(height: 1),
-          ],
-          
-          // Menu options
-          _buildMenuItem(
-            context,
-            icon: Icons.person,
-            title: 'View Profile',
-            onTap: () => Navigator.pop(context, 'profile'),
           ),
           
-          _buildMenuItem(
-            context,
-            icon: Icons.settings,
-            title: 'Settings',
-            onTap: () => Navigator.pop(context, 'settings'),
+          const Divider(),
+          
+          // Menu items
+          ListTile(
+            leading: const Icon(Icons.person),
+            title: const Text('View Profile'),
+            onTap: () {
+              Navigator.of(context).pop();
+              // TODO: Navigate to profile screen
+            },
           ),
           
-          _buildMenuItem(
-            context,
-            icon: Icons.forum,
-            title: 'Discussions',
-            onTap: () => Navigator.pop(context, 'discussions'),
+          ListTile(
+            leading: const Icon(Icons.settings),
+            title: const Text('Settings'),
+            onTap: () {
+              Navigator.of(context).pop();
+              // TODO: Navigate to settings screen
+            },
+          ),
+          
+          ListTile(
+            leading: const Icon(Icons.forum),
+            title: const Text('Discussions'),
+            onTap: () {
+              Navigator.of(context).pop();
+              // TODO: Navigate to discussions screen
+            },
+          ),
+          
+          const Divider(),
+          
+          // Logout option
+          ListTile(
+            leading: const Icon(Icons.logout),
+            title: const Text('Logout'),
+            onTap: () {
+              Navigator.of(context).pop();
+              ref.read(authStateProvider.notifier).logout();
+            },
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildMenuItem(
-    BuildContext context, {
-    required IconData icon,
-    required String title,
-    required VoidCallback onTap,
-  }) {
-    return ListTile(
-      dense: true,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 12.0, vertical: 4.0),
-      leading: Icon(
-        icon,
-        color: Theme.of(context).colorScheme.onSurface,
-        size: 20,
-      ),
-      title: Text(
-        title,
-        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: Theme.of(context).colorScheme.onSurface,
-        ),
-      ),
-      onTap: onTap,
     );
   }
 } 

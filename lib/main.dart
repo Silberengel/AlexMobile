@@ -4,6 +4,10 @@ import 'package:hive_flutter/hive_flutter.dart';
 import 'screens/home_screen.dart';
 import 'theme/app_theme.dart';
 import 'widgets/loading_screen_widget.dart';
+import 'services/database_service.dart';
+import 'services/network_service.dart';
+import 'services/auth_service.dart';
+import 'services/error_service.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -23,6 +27,7 @@ class AlexandriaApp extends ConsumerStatefulWidget {
 
 class _AlexandriaAppState extends ConsumerState<AlexandriaApp> {
   bool _isInitialized = false;
+  String _initializationMessage = 'Initializing Alexandria Mobile...';
 
   @override
   void initState() {
@@ -31,12 +36,49 @@ class _AlexandriaAppState extends ConsumerState<AlexandriaApp> {
   }
 
   Future<void> _initializeApp() async {
-    // Simulate initialization time for better UX
-    await Future.delayed(const Duration(seconds: 2));
-    
+    try {
+      // Initialize database service
+      _updateMessage('Initializing database...');
+      final databaseService = DatabaseService();
+      await databaseService.initialize();
+      
+      // Initialize network service
+      _updateMessage('Initializing network monitoring...');
+      final networkService = NetworkService();
+      await networkService.initialize();
+      
+      // Initialize auth service
+      _updateMessage('Initializing authentication...');
+      final authService = AuthService();
+      await authService.initialize();
+      
+      // Initialize error service
+      _updateMessage('Initializing error handling...');
+      final errorService = ErrorService();
+      
+      // Simulate additional initialization time for better UX
+      _updateMessage('Loading Alexandria Mobile...');
+      await Future.delayed(const Duration(seconds: 1));
+      
+      if (mounted) {
+        setState(() {
+          _isInitialized = true;
+        });
+      }
+    } catch (e) {
+      // Handle initialization errors
+      if (mounted) {
+        setState(() {
+          _initializationMessage = 'Initialization failed: $e';
+        });
+      }
+    }
+  }
+
+  void _updateMessage(String message) {
     if (mounted) {
       setState(() {
-        _isInitialized = true;
+        _initializationMessage = message;
       });
     }
   }
@@ -51,8 +93,8 @@ class _AlexandriaAppState extends ConsumerState<AlexandriaApp> {
         theme: AppTheme.lightTheme,
         darkTheme: AppTheme.darkTheme,
         themeMode: themeMode,
-        home: const LoadingScreenWidget(
-          message: 'Loading Alexandria Mobile...',
+        home: LoadingScreenWidget(
+          message: _initializationMessage,
           showLogo: true,
           showProgress: true,
         ),

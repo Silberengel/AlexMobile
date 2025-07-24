@@ -104,6 +104,30 @@ class UserProfile extends NostrEvent {
     this.name,
   });
 
+  // Getter for npub (public key in bech32 format)
+  String get npub => pubkey; // For now, using pubkey directly. In a real implementation, this would convert to bech32
+
+  factory UserProfile.fromJson(Map<String, dynamic> json) {
+    return UserProfile(
+      id: json['id'] as String,
+      pubkey: json['pubkey'] as String,
+      created_at: json['created_at'] as int,
+      kind: json['kind'] as int,
+      tags: List<List<String>>.from(
+        (json['tags'] as List).map((tag) => List<String>.from(tag)),
+      ),
+      content: json['content'] as String,
+      sig: json['sig'] as String?,
+      displayName: json['displayName'] as String?,
+      bio: json['bio'] as String?,
+      website: json['website'] as String?,
+      picture: json['picture'] as String?,
+      nip05: json['nip05'] as String?,
+      lud16: json['lud16'] as String?,
+      name: json['name'] as String?,
+    );
+  }
+
   factory UserProfile.fromNostrEvent(NostrEvent event) {
     if (event.kind != NostrEventKinds.metadata) {
       throw ArgumentError('UserProfile can only be created from kind 0 events');

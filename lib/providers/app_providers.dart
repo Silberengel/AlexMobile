@@ -1,21 +1,53 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:convert';
 import '../models/nostr_event_models.dart';
+import '../models/nostr_models.dart';
+import '../services/auth_service.dart';
+import '../services/network_service.dart';
+import '../services/database_service.dart';
+import '../services/error_service.dart';
 
-// Authentication provider
-final authProvider = StateProvider<AuthState>((ref) => AuthState.anonymous);
+// Service providers
+final authServiceProvider = Provider<AuthService>((ref) => AuthService());
+final networkServiceProvider = Provider<NetworkService>((ref) => NetworkService());
+final databaseServiceProvider = Provider<DatabaseService>((ref) => DatabaseService());
+final errorServiceProvider = Provider<ErrorService>((ref) => ErrorService());
+
+// Authentication state provider
+final authStateProvider = StateNotifierProvider<AuthStateNotifier, AuthState>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return AuthStateNotifier(authService, ref);
+});
+
+// Network status provider
+final networkStatusProvider = StateNotifierProvider<NetworkStatusNotifier, NetworkStatus>((ref) {
+  final networkService = ref.watch(networkServiceProvider);
+  return NetworkStatusNotifier(networkService, ref);
+});
+
+// Relay connections provider
+final relayConnectionsProvider = StateNotifierProvider<RelayConnectionsNotifier, List<RelayConnection>>((ref) {
+  final networkService = ref.watch(networkServiceProvider);
+  return RelayConnectionsNotifier(networkService, ref);
+});
+
+// User profile provider
+final userProfileProvider = StateNotifierProvider<UserProfileNotifier, UserProfile?>((ref) {
+  final authService = ref.watch(authServiceProvider);
+  return UserProfileNotifier(authService, ref);
+});
+
+// Error provider
+final errorProvider = StateNotifierProvider<ErrorNotifier, AppError?>((ref) {
+  final errorService = ref.watch(errorServiceProvider);
+  return ErrorNotifier(errorService, ref);
+});
 
 // Content filter provider
 final contentFilterProvider = StateProvider<ContentType>((ref) => ContentType.publications);
 
 // Search provider
 final searchQueryProvider = StateProvider<String>((ref) => '');
-
-// Network status provider
-final networkStatusProvider = StateProvider<NetworkStatus>((ref) => NetworkStatus.unknown);
-
-// Relay connections provider
-final relayConnectionsProvider = StateProvider<List<RelayConnection>>((ref) => []);
 
 // Content provider with sample data using new Nostr event models
 final contentProvider = StateProvider<List<NostrEvent>>((ref) => [
@@ -130,31 +162,216 @@ final contentProvider = StateProvider<List<NostrEvent>>((ref) => [
   ),
 ]);
 
-// Profile provider
-final profileProvider = StateProvider<UserProfile?>((ref) => null);
-
-// Enums
-enum AuthState { anonymous, authenticated, loading, error }
+// Content type enum
 enum ContentType { publications, articles, wikis, notes }
-enum NetworkStatus { online, offline, limited, unknown }
 
-// Models
-class RelayConnection {
-  final String url;
-  final bool isConnected;
-  final bool isInbox;
-  final bool isOutbox;
-  final int responseTime;
-  final double successRate;
-  final DateTime lastConnected;
+// State notifiers
+class AuthStateNotifier extends StateNotifier<AuthState> {
+  final AuthService _authService;
+  final Ref _ref;
 
-  RelayConnection({
-    required this.url,
-    this.isConnected = false,
-    this.isInbox = true,
-    this.isOutbox = true,
-    this.responseTime = 0,
-    this.successRate = 0.0,
-    required this.lastConnected,
-  });
+  AuthStateNotifier(this._authService, this._ref) : super(AuthState.anonymous) {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await _authService.initialize();
+      if (_authService.isAuthenticated) {
+        state = AuthState.authenticated;
+      } else {
+        state = AuthState.anonymous;
+      }
+    } catch (e) {
+      state = AuthState.error;
+      _ref.read(errorServiceProvider).reportAuthError('Failed to initialize authentication', details: e.toString());
+    }
+  }
+
+  Future<void> loginWithAmber() async {
+    state = AuthState.loading;
+    try {
+      final result = await _authService.loginWithAmber();
+      if (result.success) {
+        state = AuthState.authenticated;
+        _ref.read(userProfileProvider.notifier).setProfile(result.profile!);
+      } else {
+        state = AuthState.error;
+        _ref.read(errorServiceProvider).reportAuthError(result.error ?? 'Amber login failed');
+      }
+    } catch (e) {
+      state = AuthState.error;
+      _ref.read(errorServiceProvider).reportAuthError('Amber login failed', details: e.toString());
+    }
+  }
+
+  Future<void> loginWithNpub(String npub) async {
+    state = AuthState.loading;
+    try {
+      final result = await _authService.loginWithNpub(npub);
+      if (result.success) {
+        state = AuthState.authenticated;
+        _ref.read(userProfileProvider.notifier).setProfile(result.profile!);
+      } else {
+        state = AuthState.error;
+        _ref.read(errorServiceProvider).reportAuthError(result.error ?? 'Npub login failed');
+      }
+    } catch (e) {
+      state = AuthState.error;
+      _ref.read(errorServiceProvider).reportAuthError('Npub login failed', details: e.toString());
+    }
+  }
+
+  Future<void> loginWithNsec(String nsec) async {
+    state = AuthState.loading;
+    try {
+      final result = await _authService.loginWithNsec(nsec);
+      if (result.success) {
+        state = AuthState.authenticated;
+        _ref.read(userProfileProvider.notifier).setProfile(result.profile!);
+      } else {
+        state = AuthState.error;
+        _ref.read(errorServiceProvider).reportAuthError(result.error ?? 'Nsec login failed');
+      }
+    } catch (e) {
+      state = AuthState.error;
+      _ref.read(errorServiceProvider).reportAuthError('Nsec login failed', details: e.toString());
+    }
+  }
+
+  Future<void> logout() async {
+    try {
+      await _authService.logout();
+      state = AuthState.anonymous;
+      _ref.read(userProfileProvider.notifier).clearProfile();
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportAuthError('Logout failed', details: e.toString());
+    }
+  }
+}
+
+class NetworkStatusNotifier extends StateNotifier<NetworkStatus> {
+  final NetworkService _networkService;
+  final Ref _ref;
+
+  NetworkStatusNotifier(this._networkService, this._ref) : super(NetworkStatus.unknown) {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      await _networkService.initialize();
+      _networkService.statusStream.listen((status) {
+        state = status;
+      });
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportNetworkError('Failed to initialize network monitoring', details: e.toString());
+    }
+  }
+}
+
+class RelayConnectionsNotifier extends StateNotifier<List<RelayConnection>> {
+  final NetworkService _networkService;
+  final Ref _ref;
+
+  RelayConnectionsNotifier(this._networkService, this._ref) : super([]) {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      _networkService.relayStatusStream.listen((connections) {
+        state = connections;
+      });
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportRelayError('Failed to initialize relay monitoring', details: e.toString());
+    }
+  }
+
+  Future<void> addRelay(String url) async {
+    try {
+      await _networkService.addRelay(url);
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportRelayError('Failed to add relay', details: e.toString());
+    }
+  }
+
+  void removeRelay(String url) {
+    try {
+      _networkService.removeRelay(url);
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportRelayError('Failed to remove relay', details: e.toString());
+    }
+  }
+}
+
+class UserProfileNotifier extends StateNotifier<UserProfile?> {
+  final AuthService _authService;
+  final Ref _ref;
+
+  UserProfileNotifier(this._authService, this._ref) : super(null) {
+    _initialize();
+  }
+
+  Future<void> _initialize() async {
+    try {
+      final profile = _authService.getCurrentProfile();
+      if (profile != null) {
+        state = profile;
+      }
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportAuthError('Failed to load user profile', details: e.toString());
+    }
+  }
+
+  void setProfile(UserProfile profile) {
+    state = profile;
+  }
+
+  void clearProfile() {
+    state = null;
+  }
+
+  Future<void> updateProfile({
+    String? displayName,
+    String? bio,
+    String? website,
+    String? picture,
+    String? nip05,
+    String? lud16,
+  }) async {
+    try {
+      await _authService.updateProfile(
+        displayName: displayName,
+        bio: bio,
+        website: website,
+        picture: picture,
+        nip05: nip05,
+        lud16: lud16,
+      );
+      
+      // Refresh profile
+      final updatedProfile = _authService.getCurrentProfile();
+      if (updatedProfile != null) {
+        state = updatedProfile;
+      }
+    } catch (e) {
+      _ref.read(errorServiceProvider).reportAuthError('Failed to update profile', details: e.toString());
+    }
+  }
+}
+
+class ErrorNotifier extends StateNotifier<AppError?> {
+  final ErrorService _errorService;
+  final Ref _ref;
+
+  ErrorNotifier(this._errorService, this._ref) : super(null) {
+    _errorService.errorStream.listen((error) {
+      state = error;
+    });
+  }
+
+  void clearError() {
+    state = null;
+  }
 } 
