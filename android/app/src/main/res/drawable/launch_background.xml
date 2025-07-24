@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- GitCitadel Alexandria Mobile Launch Screen -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- Background with GitCitadel brand gradient -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:startColor="#0A0A0F"
+                android:endColor="#1A1A2E"
+                android:angle="135"/>
+        </shape>
+    </item>
+    
+    <!-- GitCitadel Logo -->
+    <item android:gravity="center">
+        <bitmap
+            android:gravity="center"
+            android:src="@mipmap/ic_launcher" />
+    </item>
+    
+    <!-- App Title -->
+    <item android:gravity="center_horizontal|bottom"
+          android:bottom="100dp">
+        <text
+            android:text="GitCitadel Alexandria"
+            android:textSize="18sp"
+            android:textColor="#A7A8FF"
+            android:gravity="center" />
+    </item>
+</layer-list>

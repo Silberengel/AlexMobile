@@ -1,0 +1,1 @@
+ /home/madmin/Projects/GitCitadel/alex_android/.dart_tool/flutter_build/e08f07700c4a8fa600353e66002bc80c/native_assets.yaml: 
